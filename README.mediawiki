@@ -27,8 +27,8 @@ You can use your <tt>.git/config</tt> to store various configuation items
 
 Example:
   [remote "origin"]
-	url = mediawiki::http://git-media.wiki/w
-	fetch = +refs/heads/*:refs/remotes/wiki22/*
-	mwUnderNS = SMW
-	mwLogin = MyUser
-	mwPassword = PASSWORD
+    url = mediawiki::http://git-media.wiki/w
+    fetch = +refs/heads/*:refs/remotes/wiki22/*
+    mwUnderNS = SMW
+    mwLogin = MyUser
+    mwPassword = PASSWORD
