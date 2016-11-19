@@ -1,8 +1,8 @@
-== A git remote for MediaWiki ==
+= A git remote for MediaWiki =
 
 This code is a slightly updated version of the code in [https://github.com/git/git/tree/master/contrib/mw-to-git git/contrib/mw-to-git].
 
-=== usage ===
+== usage ==
 
 * Check out the code
  $ git clone https://github.com/hexmode/mediawiki-git-remote.git
@@ -14,3 +14,21 @@ This code is a slightly updated version of the code in [https://github.com/git/g
 * Clone a mediawiki
  $ cd
  $ git clone mediawiki::http://git-media.wiki/w
+
+== configuration ==
+You can use your <tt>.git/config</tt> to store various configuation items
+
+;mwUnderNS
+:Only synchronize pages in this namespace.
+;mwLogin
+:Your MediaWiki username
+;mwPassword
+:Your MediaWiki password
+
+Example:
+  [remote "origin"]
+	url = mediawiki::http://git-media.wiki/w
+	fetch = +refs/heads/*:refs/remotes/wiki22/*
+	mwUnderNS = SMW
+	mwLogin = MyUser
+	mwPassword = PASSWORD
