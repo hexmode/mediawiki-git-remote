@@ -6,13 +6,9 @@ This code is a slightly updated version of the code in [https://github.com/git/g
 
 * Check out the code
  $ git clone https://github.com/hexmode/mediawiki-git-remote.git
- $ cd mediawiki-git-remote
-* Add the code to your git exec path
- $ export GIT_EXEC_PATH=`git --exec-path`:`pwd`
-* Add the local perl libraries to your perl path
- $ export PERL5LIB=`pwd`/localcpan:`pwd`/lib
+* Set up your environment
+ $ eval `mediawiki/setup.sh`
 * Clone a mediawiki
- $ cd
  $ git clone mediawiki::http://git-media.wiki/w
 
 == configuration ==
