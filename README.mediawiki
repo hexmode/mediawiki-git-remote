@@ -7,7 +7,7 @@ This code is a slightly updated version of the code in [https://github.com/git/g
 * Check out the code
  $ git clone https://github.com/hexmode/mediawiki-git-remote.git
 * Set up your environment
- $ eval `mediawiki/setup.sh`
+ $ eval `mediawiki-git-remote/setup.sh`
 * Clone a mediawiki
  $ git clone mediawiki::http://git-media.wiki/w
 
