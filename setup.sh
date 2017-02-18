@@ -19,7 +19,14 @@ case ":${PERL5LIB:=$thispath/lib}:" in
     *) PERL5LIB="$thispath/lib:$PERL5LIB"  ;;
 esac
 export PERL5LIB
+
+echo PERL_MB_OPT="'--install_base \"$thispath/localcpan\"'"
+echo export PERL_MB_OPT
+echo PERL_MM_OPT="INSTALL_BASE=\"$thispath/localcpan\""
+echo export PERL_MM_OPT
+
 echo PERL5LIB=$PERL5LIB
 echo export PERL5LIB
 echo GIT_EXEC_PATH=$GIT_EXEC_PATH
 echo export GIT_EXEC_PATH
+
