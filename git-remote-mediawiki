@@ -14,12 +14,12 @@ use lib (split(/:/, $ENV{GITPERLLIB} || "/usr/share/perl/5.20.2"));
 
 use strict;
 use Data::Dumper;
+use Date::Parse;
 use MediaWiki::API;
 use Git;
 use File::Basename;
 use lib dirname(__FILE__);
 use Git::Mediawiki qw(clean_filename smudge_filename connect_maybe EMPTY HTTP_CODE_OK);
-use DateTime::Format::ISO8601;
 use Encode qw( encode decode );
 use warnings;
 
@@ -613,17 +613,13 @@ sub download_mw_mediafile {
 	my $download_url = shift;
 
 	my $response = $mediawiki->{ua}->get($download_url);
-	if ($response->code == HTTP_CODE_OK) {
-		# It is tempting to return
-		# $response->decoded_content({charset => "none"}), but
-		# when doing so, utf8::downgrade($content) fails with
-		# "Wide character in subroutine entry".
-		$response->decode();
-		return $response->content();
+	if ( $response->{success} ) {
+		return $response->{content};
 	} else {
 		print STDERR "Error downloading mediafile from :\n";
 		print STDERR "URL: ${download_url}\n";
-		print STDERR 'Server response: ' . $response->code . q{ } . $response->message . "\n";
+		print STDERR 'Server response: ' . $response->{status} . q{ } .
+                  $response->{reason} . "\n";
 	}
 }
 
@@ -856,8 +852,7 @@ sub import_file_revision {
 
 	print STDOUT "commit refs/mediawiki/${remotename}/master\n";
 	print STDOUT "mark :${n}\n";
-	print STDOUT "committer ${author} <${author}\@${wiki_name}> "
-		. $date->epoch . " +0000\n";
+	print STDOUT "committer ${author} <${author}\@${wiki_name}> $date +0000\n";
 	literal_data($comment);
 
 	# If it's not a clone, we need to know where to start from
@@ -881,8 +876,7 @@ sub import_file_revision {
 		print STDOUT "reset refs/notes/${remotename}/mediawiki\n";
 	}
 	print STDOUT "commit refs/notes/${remotename}/mediawiki\n";
-	print STDOUT "committer ${author} <${author}\@${wiki_name}> "
-		. $date->epoch . " +0000\n";
+	print STDOUT "committer ${author} <${author}\@${wiki_name}> $date +0000\n";
 	literal_data('Note added by git-mediawiki during import');
 	if (!$full_import && $n == 1) {
 		print STDOUT "from refs/notes/${remotename}/mediawiki^0\n";
@@ -1076,8 +1070,8 @@ sub mw_import_revids {
 			$last_timestamp++;
 		} else {
 			$last_timestamp = $rev->{timestamp};
-		}
-		$commit{date} = DateTime::Format::ISO8601->parse_datetime($last_timestamp);
+                }
+		$commit{date} = str2time($last_timestamp);
 
 		# If this is a revision of the media page for new version
 		# of a file do one common commit for both file and media page.
@@ -1498,7 +1492,7 @@ sub get_namespace_id_for_page {
 		return get_namespace_id($1);
 	} else {
 		return;
-              }
-      }
+        }
+}
 
 
