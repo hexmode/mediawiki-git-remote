@@ -1212,7 +1212,7 @@ sub mw_really_push_file {
 	# with this content instead:
 	$file_content = DELETED_CONTENT;
   } else {
-	$file_content = run_git("cat-file blob ${new_sha1}");
+	$file_content = run_git("cat-file blob ${new_sha1}", "raw");
   }
 
   $mediawiki = connect_maybe($mediawiki, $remotename, $url);
