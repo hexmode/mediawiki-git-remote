@@ -398,7 +398,7 @@ sub api {
       # if the request was not successful then we retry or return a failure if the maximum retries
       # have been reached, otherwise we try again
       } else {
-        return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
+        return $self->_error(ERR_HTTP, $response->{reason} . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
           if ( $try == $retries );
         next;
       }
@@ -730,7 +730,7 @@ sub _upload_old {
       wpIgnoreWarning => 'true', ]
   );
 
-  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->code == 302 );
+  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->{status} == 302 );
   return 1;
 }
 
@@ -780,7 +780,7 @@ sub download {
 
   my $response = $self->{ua}->get($url);
   return $self->_error(ERR_DOWNLOAD,"The file '$url' was not found")
-    unless ( $response->code == 200 );
+    unless ( $response->{status} == 200 );
 
   return $response->decoded_content;
 }
