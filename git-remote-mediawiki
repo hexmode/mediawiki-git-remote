@@ -965,6 +965,13 @@ sub mw_import_ref {
 	warn "Searching revisions...\n" if $VERBOSE & 1;
 	my $last_local = get_last_local_revision();
 	my $fetch_from = $last_local + 1;
+	my $last_remote_rev = get_last_global_remote_rev();
+
+	if ( $fetch_from > $last_remote_rev ) {
+		warn "Up to date!\n";
+		return;
+	}
+
 	if ($fetch_from == 1) {
 		warn "Fetching from beginning.\n" if $VERBOSE & 1;
 	} else {
