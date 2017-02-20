@@ -153,7 +153,8 @@ $wiki_name =~ s/^.*@//;
 # Commands parser
 while (<STDIN>) {
 	chomp;
-
+	warn "Got command $_\n"
+	  if $VERBOSE & 2;
 	if (!parse_command($_)) {
 		last;
 	}
@@ -167,6 +168,8 @@ while (<STDIN>) {
 
 # syntantic sugar to make it clear what we're doing
 sub tell_git {
+	warn "Telling git: @_\n"
+	  if $VERBOSE & 16;
 	print @_;
 }
 
@@ -405,7 +408,7 @@ sub run_git {
 		<$git>
 	};
 	close($git);
-
+	warn "git returned: $res\n" if $VERBOSE & 4;
 	return $res;
 }
 
@@ -532,7 +535,7 @@ sub get_pages_in_namespace {
 		}
 		$current_page = shift @pages;
 		warn "Got from the wiki: $current_page->{title}...\n"
-		  if $VERBOSE && 8;
+		  if $VERBOSE & 8;
 		return $current_page;
 	};
 }
@@ -701,7 +704,7 @@ sub get_last_local_revision {
 		$lastrev_number = 0;
 	} else {
 		warn "Last local mediawiki revision found is $lastrev_number.\n"
-		  if $VERBOSE && 1;
+		  if $VERBOSE & 1;
 	}
 	return $lastrev_number;
 }
@@ -964,7 +967,8 @@ sub import_file_revision {
 		tell_git "from refs/notes/${remotename}/mediawiki^0\n";
 	}
 	tell_git "N inline :${n}\n";
-	literal_data("mediawiki_revision: $commit{mw_revision}");
+	literal_data( "mediawiki_revision: $commit{mw_revision}\n".
+					"mediawiki_timestamp: $date" );
 	tell_git "\n\n";
 	return;
 }
@@ -978,21 +982,30 @@ sub get_more_refs {
 	my $cmd = shift;
 	my @refs;
 	while (1) {
-		my $line = <STDIN>;
+		chomp(my $line = <STDIN>);
+		warn "Got another line: $line\n"
+		  if $VERBOSE & 2;
 		if ($line =~ /^$cmd (.*)$/) {
 			push(@refs, $1);
-		} elsif ($line eq "\n") {
+		} elsif ($line eq "") {
 			return @refs;
 		} else {
-			die("Invalid command in a '$cmd' batch: $_\n");
+			die("Invalid command in this '$cmd' batch: $_\n");
 		}
 	}
 	return;
 }
 
+sub uniq {
+	my %seen;
+	return grep { !$seen{$_}++ } @_;
+}
+
 sub mw_import {
 	# multiple import commands can follow each other.
-	my @refs = (shift, get_more_refs('import'));
+	my @refs = uniq(shift, get_more_refs('import'));
+	warn "Got refs: " . join( "\n\t", @refs ) . "\n"
+	  if $VERBOSE && 2;
 	foreach my $ref (@refs) {
 		mw_import_ref($ref);
 	}
@@ -1002,11 +1015,14 @@ sub mw_import {
 
 sub mw_import_ref {
 	my $ref = shift;
-	# The remote helper will call "import HEAD" and
-	# "import refs/heads/master".
-	# Since HEAD is a symbolic ref to master (by convention,
-	# followed by the output of the command "list" that we gave),
-	# we don't need to do anything in this case.
+
+	# This does not seem to be accurate any more:
+	#     The remote helper will call "import HEAD" and
+	#     "import refs/heads/master".
+	#     Since HEAD is a symbolic ref to master (by convention,
+	#     followed by the output of the command "list" that we gave),
+	#     we don't need to do anything in this case.
+	# We're getting "import refs/heads/master" twice and uniq handles it.
 	if ($ref eq 'HEAD') {
 		return;
 	}
