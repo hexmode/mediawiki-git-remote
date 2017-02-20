@@ -649,19 +649,34 @@ sub download_mw_mediafile {
 	}
 }
 
-sub get_last_local_revision {
-	# Get note regarding last mediawiki revision
+sub get_notes( $$ ) {
+	my $remotename = shift;
+	my $what = shift;
+
 	my $note = run_git(qq(notes --ref=${remotename}/mediawiki show ) .
 						 qq(refs/mediawiki/${remotename}/master 2>/dev/null));
-	my @note_info = split(/ /, $note);
+	my @notes = split(/\n/, $note);
+	my %noted;
+	foreach (@notes) {
+		my ($key, $value) = split(/: /, $_, 2);
+		if ($what eq $key) {
+			return $value;
+		}
+		$noted{$key} = $value;
+	}
+	if ($what) {
+		return undef;
+	}
+	return \%noted;
+}
 
-	my $lastrevision_number;
-	if (!(defined($note_info[0]) && $note_info[0] eq 'mediawiki_revision:')) {
+sub get_last_local_revision {
+	# Get note regarding last mediawiki revision
+	my $lastrevision_number = get_notes( $remotename, 'mediawiki_revision' );
+	if (!$lastrevision_number) {
 		warn "No previous mediawiki revision found.\n";
 		$lastrevision_number = 0;
 	} else {
-		# Notes are formatted : mediawiki_revision: #number
-		chomp($lastrevision_number = $note_info[1]);
 		warn "Last local mediawiki revision found is ${lastrevision_number}.\n"
 		  if $VERBOSE && 1;
 	}
@@ -890,8 +905,12 @@ sub import_file_revision {
 	if (!$full_import && $n == 1) {
 		tell_git "from refs/mediawiki/${remotename}/master^0\n";
 	}
+	# FIXME replace this with a function call
+	if ($title !~ m{\.(css|js)$}i) {
+		$title = "$title$page_ext";
+	}
 	if ($content ne DELETED_CONTENT) {
-		tell_git "M 644 inline $title$page_ext\n";
+		tell_git "M 644 inline $title\n";
 		literal_data($content);
 		if (%mediafile) {
 			tell_git "M 644 inline $mediafile{title}\n";
