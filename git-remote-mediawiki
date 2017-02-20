@@ -220,11 +220,12 @@ sub fatal_mw_error {
 	my $action = shift;
 	warn "fatal: could not $action.\n";
 	warn "fatal: '$url' does not appear to be a mediawiki\n";
-	warn "fatal: make sure '$url/api.php' is a valid endpoint";
+	my $msg = "fatal: make sure '$url/api.php' is a valid endpoint";
 	if ($url =~ /^https/) {
-		warn "fatal: and the SSL certificate is correct";
+		$msg .= "fatal: and the SSL certificate is correct";
 	}
-	warn ".\nfatal: (error " .
+	warn "$msg.\n";
+	warn "fatal: (error " .
 	  $mediawiki->{error}->{code} . ': ' .
 	  $mediawiki->{error}->{details} . ")\n";
 	exit 1;
@@ -627,7 +628,8 @@ sub get_mediafile_for_page_revision {
 		$mediafile{timestamp} = $fileinfo->{timestamp};
 		# Mediawiki::API's download function doesn't support https URLs
 		# and can't download old versions of files.
-		warn "\tDownloading file $mediafile{title}, version $mediafile{timestamp}\n";
+		warn "\tDownloading file $mediafile{title}, version $mediafile{timestamp}\n"
+		  if $VERBOSE & 1;
 		$mediafile{content} = download_mw_mediafile($fileinfo->{url});
 	}
 	return %mediafile;
@@ -655,12 +657,13 @@ sub get_last_local_revision {
 
 	my $lastrevision_number;
 	if (!(defined($note_info[0]) && $note_info[0] eq 'mediawiki_revision:')) {
-		warn 'No previous mediawiki revision found';
+		warn "No previous mediawiki revision found.\n";
 		$lastrevision_number = 0;
 	} else {
 		# Notes are formatted : mediawiki_revision: #number
 		chomp($lastrevision_number = $note_info[1]);
-		warn "Last local mediawiki revision found is ${lastrevision_number}";
+		warn "Last local mediawiki revision found is ${lastrevision_number}.\n"
+		  if $VERBOSE && 1;
 	}
 	return $lastrevision_number;
 }
@@ -680,6 +683,8 @@ sub get_last_global_remote_rev {
 		rcdir => 'older',
 	};
 	my $result = $mediawiki->api($query);
+	warn "Last global remote rev: " . $result->{query}->{recentchanges}[0]->{revid} . "\n"
+	  if $VERBOSE & 1;
 	return $result->{query}->{recentchanges}[0]->{revid};
 }
 
@@ -693,7 +698,8 @@ sub get_last_remote_revision {
 
 	my $max_rev_num = 0;
 
-	warn "Getting last revision id on tracked pages...\n";
+	warn "Getting last revision id on tracked pages...\n"
+	  if $VERBOSE & 1;
 
 	foreach my $page (@pages) {
 		my $id = $page->{pageid};
@@ -714,7 +720,8 @@ sub get_last_remote_revision {
 		$max_rev_num = ($lastrev->{revid} > $max_rev_num ? $lastrev->{revid} : $max_rev_num);
 	}
 
-	warn "Last remote revision found is $max_rev_num.\n";
+	warn "Last remote revision found is $max_rev_num.\n"
+	  if $VERBOSE & 1;
 	return $max_rev_num;
 }
 
@@ -959,9 +966,9 @@ sub mw_import_ref {
 	my $last_local = get_last_local_revision();
 	my $fetch_from = $last_local + 1;
 	if ($fetch_from == 1) {
-		warn ", fetching from beginning.\n" if $VERBOSE & 1;
+		warn "Fetching from beginning.\n" if $VERBOSE & 1;
 	} else {
-		warn ", fetching from here.\n" if $VERBOSE & 1;
+		warn "Fetching from here.\n" if $VERBOSE & 1;
 	}
 
 	my $n = 0;
@@ -1369,7 +1376,6 @@ sub mw_push_revision {
 	my $local = shift;
 	my $remote = shift; # actually, this has to be "refs/heads/master" at this point.
 	my $last_local_revid = get_last_local_revision();
-	warn ".\n"; # Finish sentence started by get_last_local_revision()
 	my $last_remote_revid = get_last_remote_revision();
 	my $mw_revision = $last_remote_revid;
 
