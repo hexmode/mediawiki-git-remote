@@ -1,7 +1,7 @@
 
 use strict;
 use warnings;
-use Git::Mediawiki qw(clean_filename);
+use Git::MediaWiki qw(clean_filename);
 use Test::More;
 
 my %clean = (

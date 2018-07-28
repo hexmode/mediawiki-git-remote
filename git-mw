@@ -34,7 +34,7 @@ use HTTP::Tiny;
 
 use Git;
 use MediaWiki::API;
-use Git::Mediawiki qw(clean_filename connect_maybe
+use Git::MediaWiki qw(clean_filename connect_maybe
                       EMPTY HTTP_CODE_PAGE_NOT_FOUND);
 
 # By default, use UTF-8 to communicate with Git and the user

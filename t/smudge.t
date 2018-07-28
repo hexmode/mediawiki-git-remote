@@ -1,7 +1,7 @@
 
 use strict;
 use warnings;
-use Git::Mediawiki qw(smudge_filename);
+use Git::MediaWiki qw(smudge_filename);
 use Test::More;
 
 my %smudge = (
