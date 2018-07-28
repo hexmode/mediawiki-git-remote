@@ -1,5 +1,6 @@
-#!/bin/sh
-called=$0
+#!/bin/bash
+called=$BASH_SOURCE
+
 thispath="$( cd "$(dirname "$called")" ; pwd -P )"
 GIT_EXEC_PATH=$(git --exec-path)
 
