@@ -109,6 +109,7 @@ sub handleList {
 sub getMoreRefs {
 	my ($self, $cmd) = @_;
 	my @refs;
+
 	while (1) {
 		chomp(my $line = <STDIN>);
 
@@ -125,7 +126,6 @@ sub getMoreRefs {
 			die("Invalid command in this '$cmd' batch: $_\n");
 		}
 	}
-	return;
 }
 
 sub tellGit {
@@ -266,6 +266,7 @@ sub getLastLocalRevision {
 sub getLastGlobalRemoteRev {
 	my ($self) = @_;
 
+	$self->debug( "Getting last global remote rev." );
 	if ( !$self->{lastGlobalRemoteRev} ) {
 		my $query = {
 			action => 'query',
@@ -772,6 +773,7 @@ sub handleImport {
 	my @import = split( / /, $line );
 	shift @import;
 
+	$self->debug( "Handling Import", 4 );
 	# multiple import commands can follow each other.
 	my @refs = $self->uniq( $self->getMoreRefs( 'import' ) );
 	$self->debug( "Got refs: " . join( ", ", @refs ) . "\n", 2 );

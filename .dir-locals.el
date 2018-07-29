@@ -2,4 +2,5 @@
                           (setenv "PERL5LIB" (concat this-dir "/lib:" this-dir "/localcpan"))
                           (setenv "GIT_EXEC_PATH"
                                   (concat this-dir ":"
-                                          (shell-command-to-string "git --exec-path"))))))))
+                                          (shell-command-to-string
+                                           "printf %s \"$(git --exec-path)\""))))))))
