@@ -1,271 +1,271 @@
-package Git::MediaWiki::Git;
+package Git::MediaWiki::Git; # -*- mode: cperl; cperl-indent-level: 4; tab-width: 4; indent-tabs-mode: t; -*-
 
 use strict;
 
 use Git::MediaWiki::Constants;
 
 sub new {
-  my $class = shift;
-  my $arg = ref $_[0] ? $_[0] : {@_};
-  my $self = bless( {
-    fh => $arg->{fh} ? $arg->{fh} : *STDIN,
-    verbose => $arg->{verbose} ? $arg->{verbose} : 0,
-    mw => $arg->{mw},
-    output => $arg->{output}
-  }, $class );
+	my $class = shift;
+	my $arg = ref $_[0] ? $_[0] : {@_};
+	my $self = bless( {
+		fh => $arg->{fh} ? $arg->{fh} : *STDIN,
+		verbose => $arg->{verbose} ? $arg->{verbose} : 0,
+		mw => $arg->{mw},
+		output => $arg->{output}
+	  }, $class );
 }
 
 # usage: $out = run_git("command args");
 #        don't interpret output as UTF-8:
 #        $out = run_git("command args", "raw");
 sub run {
-  my $self = shift;
-  my $cmd = shift;
-  my $encoding = (shift || 'encoding(UTF-8)');
-  warn "executing 'git $cmd' with encoding: $encoding\n" if $self->{verbose} & 4;
-  open(my $git, "-|:${encoding}", "git ${cmd}")
-    or die "Unable to fork: $!\n";
-  my $res = do {
-    local $/ = undef;
-    <$git>
-  };
-  close($git);
-  warn "git returned: $res\n" if $self->{verbose} & 4;
-  return $res;
+	my $self = shift;
+	my $cmd = shift;
+	my $encoding = (shift || 'encoding(UTF-8)');
+	warn "executing 'git $cmd' with encoding: $encoding\n" if $self->{verbose} & 4;
+	open(my $git, "-|:${encoding}", "git ${cmd}")
+	  or die "Unable to fork: $!\n";
+	my $res = do {
+		local $/ = undef;
+		<$git>
+	};
+	close($git);
+	warn "git returned: $res\n" if $self->{verbose} & 4;
+	return $res;
 }
 
 sub getTrackedPages {
-  my ($self) = @_;
+	my ($self) = @_;
 
-  # Accept both space-separated and multiple keys in config file.
-  # Spaces should be written as _ anyway because we'll use chomp.
-  if ( !defined $self->{tracked_pages} ) {
-    $self->{tracked_pages} = @{Git::config( "page" )};
-  }
-  return $self->{tracked_pages};
+	# Accept both space-separated and multiple keys in config file.
+	# Spaces should be written as _ anyway because we'll use chomp.
+	if ( !defined $self->{tracked_pages} ) {
+		$self->{tracked_pages} = @{Git::config( "page" )};
+	}
+	return $self->{tracked_pages};
 }
 
 sub getTrackedCategories {
-  my ($self) = @_;
+	my ($self) = @_;
 
-  # Just like trackedPages, but for MediaWiki categories.
-  if ( !$self->{tracked_categories} ) {
-    $self->{tracked_categories} = @{self->remote_list( "category" );
-  }
-  return $self->{tracked_categories};
+	# Just like trackedPages, but for MediaWiki categories.
+	if ( !$self->{tracked_categories} ) {
+		$self->{tracked_categories} = @{self->remote_list( "category" );
+									}
+		  return $self->{tracked_categories};
+	}
 }
-
 sub getMediaFlag {
-  my ($self) = @_;
+	my ($self) = @_;
 
-  if ( !defined $self->{mediaFlag} ) {
-    $self->{mediaFlag} = lc( $self->remote_value("media") )
-  }
-  return $self->{mediaFlag};
+	if ( !defined $self->{mediaFlag} ) {
+		$self->{mediaFlag} = lc( $self->remote_value("media") )
+	}
+	return $self->{mediaFlag};
 }
 
 sub importMedia {
-  my ($self) = @_;
-  my $mf = $self->getMediaFlag();
+	my ($self) = @_;
+	my $mf = $self->getMediaFlag();
 
-  return ( $mf eq 'import' ) || ( $mf eq 'both' );
+	return ( $mf eq 'import' ) || ( $mf eq 'both' );
 }
 
 sub exportMedia {
-  my ($self) = @_;
-  my $mf = $self->getMediaFlag();
+	my ($self) = @_;
+	my $mf = $self->getMediaFlag();
 
-  return ( $mf eq 'export' ) || ( $mf eq 'both' );
+	return ( $mf eq 'export' ) || ( $mf eq 'both' );
 }
 
 sub getAllNamespaces {
-  my ($self) = @_;
+	my ($self) = @_;
 
-  if ( !defined $self->{namespaces} ) {
-    $self->{namespaces} = {};
-    map {
-      my ($k, $v) = split(":", $_, 2);
-      $self->{namespaces}->{$k} = $v;
-    } $self->remote_list("namespaceCache");
+	if ( !defined $self->{namespaces} ) {
+		$self->{namespaces} = {};
+		map {
+			my ($k, $v) = split(":", $_, 2);
+			$self->{namespaces}->{$k} = $v;
+		} $self->remote_list("namespaceCache");
 
-    if (scalar keys %{$self->{namespaces}} == 0) {
-      my $resp = $self->{mw}->api({
-        action => 'query',
-        meta => 'siteinfo',
-        siprop => 'namespaces'
-      });
-      if (!defined $resp) {
-        fatal_mw_error("get namespaces");
-      }
-      my %ns = %{$resp->{query}->{namespaces}};
-      foreach my $ns (keys %ns) {
-        if ($ns < 0 ) {
-          delete $ns{$ns};
-          next;
-        }
-        my $name = $ns{$ns}{'*'};
-        my $canon = $ns{$ns}{'canonical'}
-          ? $ns{$ns}{'canonical'} : $name;
-        warn "Got $name/$canon namespace.\n" if $self->{verbose} & 2;
-        $ns{$name} = $ns{$ns};
-        mw_add_all_ns( $name, $ns{$ns}{id} );
-        if ($name ne $canon) {
-          $ns{$canon} = $ns{$ns};
-          mw_add_all_ns( $canon, $ns{$ns}{id} );
-        }
-        delete $ns{$ns};
-      }
-      $self->{namespaces} = \%ns;
-    }
-  }
-  return $self->{namespaces};
+		if (scalar keys %{$self->{namespaces}} == 0) {
+			my $resp = $self->{mw}->api({
+				action => 'query',
+				meta => 'siteinfo',
+				siprop => 'namespaces'
+			  });
+			if (!defined $resp) {
+				fatal_mw_error("get namespaces");
+			}
+			my %ns = %{$resp->{query}->{namespaces}};
+			foreach my $ns (keys %ns) {
+				if ($ns < 0 ) {
+					delete $ns{$ns};
+					next;
+				}
+				my $name = $ns{$ns}{'*'};
+				my $canon = $ns{$ns}{'canonical'}
+				  ? $ns{$ns}{'canonical'} : $name;
+				warn "Got $name/$canon namespace.\n" if $self->{verbose} & 2;
+				$ns{$name} = $ns{$ns};
+				mw_add_all_ns( $name, $ns{$ns}{id} );
+				if ($name ne $canon) {
+					$ns{$canon} = $ns{$ns};
+					mw_add_all_ns( $canon, $ns{$ns}{id} );
+				}
+				delete $ns{$ns};
+			}
+			$self->{namespaces} = \%ns;
+		}
+	}
+	return $self->{namespaces};
 }
 
 
 my $use_namespace = get_git_remote_value("mwUnderNS");
 
-  my $wiki_login = get_git_remote_value("mwLogin");
-  # Note: mwPassword is discouraged. Use the credential system instead.
-  my $wiki_passwd = get_git_remote_value("mwPassword");
-  my $wiki_domain = get_git_remote_value("mwDomain");
+my $wiki_login = get_git_remote_value("mwLogin");
+# Note: mwPassword is discouraged. Use the credential system instead.
+my $wiki_passwd = get_git_remote_value("mwPassword");
+my $wiki_domain = get_git_remote_value("mwDomain");
 
-  # Import only last revisions (both for clone and fetch)
-  my $shallow_import = get_git_remote_bool("shallow");
+# Import only last revisions (both for clone and fetch)
+my $shallow_import = get_git_remote_bool("shallow");
 
-  # Fetch (clone and pull) by revisions instead of by pages. This behavior
-  # is more efficient when we have a wiki with lots of pages and we fetch
-  # the revisions quite often so that they concern only few pages.
-  # Possible values:
-  # - by_rev: perform one query per new revision on the remote wiki
-  # - by_page: query each tracked page for new revision
-  my $fetch_strategy = get_git_remote_value("fetchStrategy")
-    || get_git_value('mediawiki.fetchStrategy') || 'by_page';
+# Fetch (clone and pull) by revisions instead of by pages. This behavior
+# is more efficient when we have a wiki with lots of pages and we fetch
+# the revisions quite often so that they concern only few pages.
+# Possible values:
+# - by_rev: perform one query per new revision on the remote wiki
+# - by_page: query each tracked page for new revision
+my $fetch_strategy = get_git_remote_value("fetchStrategy")
+  || get_git_value('mediawiki.fetchStrategy') || 'by_page';
 
-  # The extension to provide local copies of (non-file) pages
-  my $page_ext = get_git_value('mediawiki.pageExtension') || '.mw';
+# The extension to provide local copies of (non-file) pages
+my $page_ext = get_git_value('mediawiki.pageExtension') || '.mw';
 
 }
 
-sub parse {
-  my ($self) = @_;
-  my $fh = $self->{fh};
+  sub parse {
+	  my ($self) = @_;
+	  my $fh = $self->{fh};
 
-  # Commands parser
-  while (<$fh>) {
-    chomp;
-    warn "Got command $_\n"
-      if $self->{verbose} & 2;
-    if (!$self->parseCommand($_)) {
-      last;
-    }
+	  # Commands parser
+	  while (<$fh>) {
+		  chomp;
+		  warn "Got command $_\n"
+			if $self->{verbose} & 2;
+		  if (!$self->parseCommand($_)) {
+			  last;
+		  }
 
-    # flush STDOUT, to make sure the previous
-    # command is fully processed.
-    BEGIN { $| = 1 }
+		  # flush STDOUT, to make sure the previous
+		  # command is fully processed.
+		  BEGIN { $| = 1 }
+	  }
   }
-}
 
 sub setVerbosity {
-  my ($self, $verb) = @_;
+	my ($self, $verb) = @_;
 
-  $self->{verbose} = $verb;
+	$self->{verbose} = $verb;
 }
 
 sub parseCommand {
-  my ($self, $line) = @_;
-  my @cmd = split(/ /, $line);
-  if (!defined $cmd[0]) {
-    return 0;
-  }
-  if ($cmd[0] eq 'capabilities') {
-    die("Too many arguments for capabilities\n")
-      if (defined($cmd[1]));
-    $self->capabilities();
-  } elsif ($cmd[0] eq 'list') {
-    die("Too many arguments for list\n") if (defined($cmd[2]));
-    $self->list($cmd[1]);
-  } elsif ($cmd[0] eq 'import') {
-    die("Invalid argument for import\n")
-      if ($cmd[1] eq Git::MediaWiki::Constants::EMPTY);
-    die("Too many arguments for import\n")
-      if (defined($cmd[2]));
-    $self->import($cmd[1]);
-  } elsif ($cmd[0] eq 'option') {
-    die("Invalid arguments for option\n")
-      if ( $cmd[1] eq Git::MediaWiki::Constants::EMPTY
-           || $cmd[2] eq Git::MediaWiki::Constants::EMPTY );
-    die("Too many arguments for option\n")
-      if (defined($cmd[3]));
-    mw_option($cmd[1],$cmd[2]);
-  } elsif ($cmd[0] eq 'push') {
-    mw_push($cmd[1]);
-  } else {
-    warn "Unknown command. Aborting...\n";
-    return 0;
-  }
-  return 1;
+	my ($self, $line) = @_;
+	my @cmd = split(/ /, $line);
+	if (!defined $cmd[0]) {
+		return 0;
+	}
+	if ($cmd[0] eq 'capabilities') {
+		die("Too many arguments for capabilities\n")
+		  if (defined($cmd[1]));
+		$self->capabilities();
+	} elsif ($cmd[0] eq 'list') {
+		die("Too many arguments for list\n") if (defined($cmd[2]));
+		$self->list($cmd[1]);
+	} elsif ($cmd[0] eq 'import') {
+		die("Invalid argument for import\n")
+		  if ($cmd[1] eq Git::MediaWiki::Constants::EMPTY);
+		die("Too many arguments for import\n")
+		  if (defined($cmd[2]));
+		$self->import($cmd[1]);
+	} elsif ($cmd[0] eq 'option') {
+		die("Invalid arguments for option\n")
+		  if ( $cmd[1] eq Git::MediaWiki::Constants::EMPTY
+			   || $cmd[2] eq Git::MediaWiki::Constants::EMPTY );
+		die("Too many arguments for option\n")
+		  if (defined($cmd[3]));
+		mw_option($cmd[1],$cmd[2]);
+	} elsif ($cmd[0] eq 'push') {
+		mw_push($cmd[1]);
+	} else {
+		warn "Unknown command. Aborting...\n";
+		return 0;
+	}
+	return 1;
 }
 
 sub import {
-  my ($self, $cmd) = @_;
+	my ($self, $cmd) = @_;
 
 }
 
 sub tellGit {
-  my ($self, $msg) = @_;
-  $self->{gitOutput}->print( $msg );
+	my ($self, $msg) = @_;
+	$self->{gitOutput}->print( $msg );
 }
 
 
 sub list {
-  my ($self) = @_;
+	my ($self) = @_;
 
-  # MediaWiki do not have branches, we consider one branch arbitrarily
-  # called master, and HEAD pointing to it.
-  $self->tellGit("? refs/heads/master\n");
-  $self->tellGit("\@refs/heads/master HEAD\n");
-  $self->tellGit("\n");
-  return;
+	# MediaWiki do not have branches, we consider one branch arbitrarily
+	# called master, and HEAD pointing to it.
+	$self->tellGit("? refs/heads/master\n");
+	$self->tellGit("\@refs/heads/master HEAD\n");
+	$self->tellGit("\n");
+	return;
 }
 
 sub capabilities {
-  my ($self) = @_;
-  my $remotename = $self->{remotename};
-  my $dumbPush = $self->{dumb_push};
-  # Revisions are imported to the private namespace
-  # refs/mediawiki/$remotename/ by the helper and fetched into
-  # refs/remotes/$remotename later by fetch.
-  $self->tellGit("refspec refs/heads/*:refs/mediawiki/${remotename}/*\n");
-  $self->tellGit("import\n");
-  $self->tellGit("list\n");
-  $self->tellGit("push\n");
-  if ($self->dumbPush) {
-    $self->tellGit("no-private-update\n");
-  }
-  $self->tellGit("\n");
-  return;
+	my ($self) = @_;
+	my $remotename = $self->{remotename};
+	my $dumbPush = $self->{dumb_push};
+	# Revisions are imported to the private namespace
+	# refs/mediawiki/$remotename/ by the helper and fetched into
+	# refs/remotes/$remotename later by fetch.
+	$self->tellGit("refspec refs/heads/*:refs/mediawiki/${remotename}/*\n");
+	$self->tellGit("import\n");
+	$self->tellGit("list\n");
+	$self->tellGit("push\n");
+	if ($self->dumbPush) {
+		$self->tellGit("no-private-update\n");
+	}
+	$self->tellGit("\n");
+	return;
 }
 
 sub dumbPush {
-  my ($self) = @_;
-  my $dumb_push = $self->remote_bool("dumbPush")
-    || $self->bool('mediawiki.dumbPush');
+	my ($self) = @_;
+	my $dumb_push = $self->remote_bool("dumbPush")
+	  || $self->bool('mediawiki.dumbPush');
 
-  return $dumb_push;
+	return $dumb_push;
 }
 
 sub remote_bool {
-  my ($self, $name) = @_;
-  my $remotename = $self->{remotename};
+	my ($self, $name) = @_;
+	my $remotename = $self->{remotename};
 
-  return $self->bool("remote.${remotename}.$name");
+	return $self->bool("remote.${remotename}.$name");
 }
 
 sub bool {
-  my ($self, $name) = @_;
-  my $ret = $self->{git}->run("config --get --bool $name") || "";
-  chomp ( $ret );
-  return ( $ret eq 'true' );
+	my ($self, $name) = @_;
+	my $ret = $self->{git}->run("config --get --bool $name") || "";
+	chomp ( $ret );
+	return ( $ret eq 'true' );
 }
 
 1

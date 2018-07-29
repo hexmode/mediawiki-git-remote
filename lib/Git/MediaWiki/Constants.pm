@@ -1,9 +1,15 @@
-package Git::MediaWiki::Constants;
+package Git::MediaWiki::Constants; # -*- mode: cperl; cperl-indent-level: 4; tab-width: 4; indent-tabs-mode: t; -*-
 
 use strict;
-
-our (@EXPORT);
-@EXPORT = qw(EMPTY);
+use Exporter qw( import );
+our @EXPORT = ();
+our %EXPORT_TAGS = (
+  'all' => [ qw( SLASH_REPLACEMENT EMPTY HTTP_CODE_OK HTTP_CODE_PAGE_NOT_FOUND DELETED_CONTENT
+                 EMPTY_CONTENT NULL_SHA1 EMPTY_MESSAGE SLICE_SIZE BATCH_SIZE ) ]
+);
+our @EXPORT_OK = (
+  @{ $EXPORT_TAGS{all} },
+);
 
 # Mediawiki filenames can contain forward slashes. This variable
 # decides by which pattern they should be replaced

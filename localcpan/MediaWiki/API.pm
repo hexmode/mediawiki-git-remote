@@ -5,8 +5,7 @@ use strict;
 
 # our required modules
 
-use HTTP::Tiny;
-use HTTP::CookieJar;
+use LWP::UserAgent;
 use URI::Escape;
 use Encode;
 use JSON;
@@ -34,7 +33,7 @@ use constant {
   DEF_MAX_LAG_RETRIES => 4,
   DEF_MAX_LAG_DELAY => 5,
 
-  USE_HTTP_GET => 1
+  USE_HTTP_GET => 0
 };
 
 =head1 NAME
@@ -103,15 +102,15 @@ Configuration options are
 
 =item * on_error = Function reference to call if an error occurs in the module.
 
-=item * use_http_get = Boolean 0 or 1 (defaults to 1). If set to 1, the perl module will use http GET method for accessing the api. By default it uses the POST method. Note that the module will still use POST for the api calls that require POST no matter what the value of this configuration option. Currently the following actions will work with GET: query, logout, purge, paraminfo - see get_actions configuration below.
+=item * use_http_get = Boolean 0 or 1 (defaults to 0). If set to 1, the perl module will use http GET method for accessing the api. By default it uses the POST method. Note that the module will still use POST for the api calls that require POST no matter what the value of this configuration option. Currently the following actions will work with GET: query, logout, purge, paraminfo - see get_actions configuration below.
 
 =item * get_actions = Hashref (defaults to { 'query' => 1, 'logout' => 1, purge' => 1, 'paraminfo' => 1 } ). This contains the API actions that are supported by the http GET method if it is enabled. Some wikis may have extensions that add more functions that work with an http GET request. If so, you can add actions as needed.
 
-=item * retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 0 (try only once - don't retry). If max_retries is set to 4, and the wiki is down, the error won't be reported until after the 5th connection attempt.
+=item * retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 0 (try only once - don't retry). If max_retries is set to 4, and the wiki is down, the error won't be reported until after the 5th connection attempt. 
 
 =item * retry_delay = Integer value in seconds; The amount of time to wait before retrying a request if an HTTP error or JSON decoding error occurs.
 
-=item * max_lag = Integer value in seconds; Wikipedia runs on a database cluster and as such high edit rates cause the slave servers to lag. If this config option is set then if the lag is more then the value of max_lag, the api will wait before retrying the request. 5 is a recommended value. More information about this subject can be found at http://www.mediawiki.org/wiki/Manual:Maxlag_parameter. note the config option includes an underscore so match the naming scheme of the other configuration options.
+=item * max_lag = Integer value in seconds; Wikipedia runs on a database cluster and as such high edit rates cause the slave servers to lag. If this config option is set then if the lag is more then the value of max_lag, the api will wait before retrying the request. 5 is a recommended value. More information about this subject can be found at http://www.mediawiki.org/wiki/Manual:Maxlag_parameter. note the config option includes an underscore so match the naming scheme of the other configuration options. 
 
 =item * max_lag_delay = Integer value in seconds; This configuration option specified the delay to wait before retrying a request when the server has reported a lag more than the value of max_lag. This defaults to 5 if using the max_lag configuration option.
 
@@ -173,7 +172,7 @@ Other useful parameters and objects in the MediaWiki::API object are
 sub new {
 
   my ($class, $config) = @_;
-
+  
   # if no config passed make a new hash reference and get the default configuration parameters
   $config = {} if ! defined $config;
   my $defconfig = _get_config_defaults();
@@ -182,10 +181,14 @@ sub new {
 
   my $self = { config => $config  };
 
-  my $client = HTTP::Tiny->new( cookie_jar => HTTP::CookieJar->new(),
-                                agent => __PACKAGE__ . "/$VERSION"
-                               );
-  $self->{ua} = $client;
+  my $ua = LWP::UserAgent->new();
+  $ua->cookie_jar({});
+  $ua->agent(__PACKAGE__ . "/$VERSION");
+  $ua->default_header("Accept-Encoding" => "gzip, deflate");
+  $ua->env_proxy() unless ($config->{no_proxy});
+
+  $self->{ua} = $ua;
+
   my $json = JSON->new->utf8(1);
   $self->{json} = $json;
 
@@ -208,9 +211,9 @@ sub _get_config_defaults {
   $config{max_lag} = DEF_MAX_LAG;
   $config{max_lag_retries} = DEF_MAX_LAG_RETRIES;
   $config{max_lag_delay} = DEF_MAX_LAG_DELAY;
-
+  
   $config{use_http_get} = USE_HTTP_GET;
-
+  
   $config{get_actions} = {
     'query' => 1,
     'logout' => 1,
@@ -254,7 +257,7 @@ sub login {
   # return error if the login was not successful
   return $self->_error( ERR_LOGIN, 'Login Failure - ' . $login->{result} )
     unless ( $login->{result} eq 'Success' );
-
+    
   # everything was ok so return the reference
   return $login;
 }
@@ -283,6 +286,25 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
   foreach ( @{ $langlinks->{langlinks} } ) {
     print "$_->{'*'}\n";
   }
+
+MediaWiki's API uses UTF-8 and any 8 bit character string parameters are encoded automatically by the API call. If your parameters are already in UTF-8 this will be detected and the encoding will be skipped. If your parameters for some reason contain UTF-8 data but no UTF-8 flag is set (i.e. you did not use the "use utf8;" pragma) you should prevent re-encoding by passing an option skip_encoding => 1 in the $options_hash. For example:
+
+ my $mw = MediaWiki::API->new();
+ $mw->{config}->{api_url} = 'http://fr.wiktionary.org/w/api.php';
+
+ my $query = {action => 'query',
+   list => 'categorymembers',
+   cmlimit => 'max'};
+
+ $query->{cmtitle} ="Cat\x{e9}gorie:moyen_fran\x{e7}ais"; # latin1 string
+ $mw->list ( $query ); # ok 
+
+ $query->{cmtitle} = "Cat". pack("U", 0xe9)."gorie:moyen_fran".pack("U",0xe7)."ais"; # unicode string
+ $mw->list ( $query ); # ok
+
+ $query->{cmtitle} ="Cat\x{c3}\x{a9}gorie:moyen_fran\x{c3}\x{a7}ais";  # unicode data without utf-8 flag
+ # $mw->list ( $query ); # NOT OK
+ $mw->list ( $query, {skip_encoding => 1} ); # ok
 
 If you are calling an API function which requires a file upload, e.g. import or upload, specify the file to upload as an arrayref containing the local filename. The API may return a warning, for example to say the file is a duplicate. To ignore warnings and force an upload, use ignorewarnings => 1. All the parameters as with everything else can be found on the MediaWiki API page.
 
@@ -323,11 +345,12 @@ sub api {
   my $retries = $self->{config}->{retries};
   my $maxlagretries = 1;
 
-  $query->{maxlag} = $self->{config}->{max_lag} if defined $self->{config}->{max_lag};
+  $self->_encode_hashref_utf8($query, $options->{skip_encoding});
+  $query->{maxlag} = $self->{config}->{max_lag} if defined $self->{config}->{max_lag}; 
   $query->{format}='json';
 
   # if the config is set to use GET we need to contruct a querystring. some actions are "POST" only -
-  # edit, move, action = rollback, action = undelete, action =
+  # edit, move, action = rollback, action = undelete, action = 
   my $querystring = '';
   if ( $self->{config}->{use_http_get} && $self->{config}->{get_actions}->{$query->{action}} ) {
     $querystring = _make_querystring( $query );
@@ -345,36 +368,29 @@ sub api {
       }
 
       my $response;
+      my %headers;
       # if we are using the get method ($querystring is set above)
       if ( $querystring ) {
-        $response = $self->{ua}->get( $self->{config}->{api_url} . "?$querystring" );
-      } elsif ( $query->{action} eq 'upload' || $query->{action} eq 'import' ) {
-        $response = $self->{ua}->post_form( $self->{config}->{api_url}, $query );
+        $response = $self->{ua}->get( $self->{config}->{api_url} . $querystring, %headers );
       } else {
-        $response = $self->{ua}->post( $self->{config}->{api_url},
-                                       { content => _make_querystring( $query ) } );
+        $headers{'content-type'} = 'form-data' if $query->{action} eq 'upload' || $query->{action} eq 'import';
+        $response = $self->{ua}->post( $self->{config}->{api_url}, $query, %headers );
       }
       $self->{response} = $response;
-
+      
       # if the request was successful then check the returned content and decode.
-      if ( $response->{success} ) {
-
-        my $decontent = $response->{content};
+      if ( $response->is_success ) {
+        
+        my $decontent = $response->decoded_content( charset => 'none' );
 
         if ( ! defined $decontent ) {
           return $self->_error(ERR_HTTP,"Unable to decode content returned by $self->{config}->{api_url} - Unknown content encoding?")
             if ( $try == $retries );
           next;
         }
-
+        
         if ( length $decontent == 0 ) {
           return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
-            if ( $try == $retries );
-          next;
-        }
-
-        if( $response->{headers}->{'content-type'} !~ m{application/json} ) {
-          return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned non-json")
             if ( $try == $retries );
           next;
         }
@@ -398,11 +414,11 @@ sub api {
       # if the request was not successful then we retry or return a failure if the maximum retries
       # have been reached, otherwise we try again
       } else {
-        return $self->_error(ERR_HTTP, $response->{reason} . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
+        return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
           if ( $try == $retries );
         next;
-      }
-
+      }       
+      
     }
 
     return $self->_error(ERR_API,"API has returned an empty array reference. Please check your parameters") if ( ref($ref) eq 'ARRAY' && scalar @{$ref} == 0);
@@ -426,6 +442,7 @@ sub api {
   }
 
   return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if ( ref($ref) eq 'HASH' && exists $ref->{error} );
+
   return $ref;
 }
 
@@ -479,6 +496,8 @@ are supported via this call. Use this call to edit pages without having to worry
 
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
+The options hashref currently has one optional parameter (skip_encoding => 1). This is described above in the MediaWiki::API->api call documentation.
+
 Here are some example snippets of code. The first example is for adding some text to an existing page (if the page doesn't exist nothing will happen). Note that the timestamp for the revision we are changing is saved. This allows us to avoid edit conflicts. The value is passed back to the edit function, and if someone had edited the page in the meantime, an error will be returned.
 
   my $pagename = "Wikipedia:Sandbox";
@@ -498,7 +517,7 @@ a generated reason will be used.
 
   # delete a page
   $mw->edit( {
-    action => 'delete', title => 'DeleteMe', reason => 'no longer needed' } )
+    action => 'delete', title => 'DeleteMe', reason => 'no longer needed' } ) 
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 This code moves a page from MoveMe to MoveMe2.
@@ -591,11 +610,15 @@ This function will return a reference to an array of hashes or undef on failure.
 
 =item * hook => \&function_hook
 
+=item * skip_encoding => 1
+
 =back
 
 The value of max specifies the maximum "queries" which will be used to pull data out. For example the default limit per query is 10 items, but this can be raised to 500 for normal users and higher for sysops and bots. If the limit is raised to 500 and max was set to 2, a maximum of 1000 results would be returned.
 
 If you wish to process large lists, for example the articles in a large category, you can pass a hook function, which will be passed a reference to an array of results for each query connection.
+
+The skip_encoding parameter works as described above in the MediaWiki::API->api call documentation.
 
   binmode STDOUT, ':utf8';
 
@@ -658,7 +681,7 @@ sub list {
 
   } until ( ! $continue || $count >= $options->{max} && $options->{max} != 0 );
 
-  return 1 if ( defined $options->{hook} );
+  return 1 if ( defined $options->{hook} ); 
   return \@results;
 
 }
@@ -730,7 +753,7 @@ sub _upload_old {
       wpIgnoreWarning => 'true', ]
   );
 
-  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->{status} == 302 );
+  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->code == 302 );
   return 1;
 }
 
@@ -780,12 +803,12 @@ sub download {
 
   my $response = $self->{ua}->get($url);
   return $self->_error(ERR_DOWNLOAD,"The file '$url' was not found")
-    unless ( $response->{status} == 200 );
+    unless ( $response->code == 200 );
 
   return $response->decoded_content;
 }
 
-# returns the version of mediawiki being run
+# returns the version of mediawiki being run 
 sub _get_version {
   my ($self) = @_;
   return $self->{config}->{mw_ver} if exists( $self->{config}->{mw_ver} );
@@ -800,6 +823,30 @@ sub _get_version {
   return $mwver;
 }
 
+# returns a copy of a hash (passed by reference) encoded to utf-8
+# used to encode parameters before being passed to the api
+sub _encode_hashref_utf8 {
+  my $uriver = $URI::VERSION;
+  my ($self, $ref, $skipenc) = @_;
+  for my $key ( keys %{$ref} ) {
+    # skip to next item if no value defined or the item is a ref (i.e. a file upload)
+    next if ! defined $ref->{$key} || ref($ref->{$key});
+    # if we don't want to skip encoding and the item doesn't already have the utf8 flag set or we are using
+    # an older version of URI.pm that doesn't handle the encoding correctly then we need to encode to utf8
+    if ( ! $skipenc && ( ! utf8::is_utf8($ref->{$key}) || $URI::VERSION < 1.36) ) {
+      $ref->{$key} = Encode::encode_utf8($ref->{$key});
+    }
+    # turn on the utf8 flag so the URI module knows what to do with it (and so we don't re-encode when we don't need to)
+    # if we are using a new enough version of URI that will handle the encoding correctly.
+    # so what you get is :
+    # URI <  1.36 - utf8 encoded string without utf8 flag (works)
+    # URI >= 1.36 - utf8 encoded string with utf8 flag (works)
+    Encode::_utf8_on($ref->{$key}) if $URI::VERSION >= 1.36;
+  }
+
+  return $ref;
+}
+
 # creates a querystring from a utf-8 hashref
 sub _make_querystring {
   my ($ref) = @_;
@@ -809,7 +856,7 @@ sub _make_querystring {
     $keyval = uri_escape_utf8($key) . '=' . uri_escape_utf8($ref->{$key});
     push(@qs, $keyval);
   }
-  return join('&',@qs);
+  return '?' . join('&',@qs);
 }
 
 # gets a token for a specified parameter and sets it in the query for the call
@@ -843,7 +890,7 @@ sub _get_set_tokens {
   # may merge into above ifdef depending on other token implementations
   my $prop = 'info';
   my $token = 'intoken';
-  my $tokquery = { action => 'query', prop => $prop, $token => $tokaction, titles => $title };
+  my $tokquery = { action => 'query', prop => $prop, $token => $tokaction, titles => $title };  
   if ( $tokaction eq 'rollback' ) {
     $prop = 'revisions';
     $token = 'rvtoken';
@@ -859,7 +906,7 @@ sub _get_set_tokens {
 
   # if the page doesn't exist and we aren't editing/creating a new page then return an error
   if ( defined $pageref->{missing} && $tokaction ne 'edit' && $tokaction ne 'import' ) {
-    return $self->_error( ERR_EDIT, "Unable to $tokaction page '$title'. Page does not exist.")
+    return $self->_error( ERR_EDIT, "Unable to $tokaction page '$title'. Page does not exist.") 
   }
 
   if ( $query->{action} eq 'rollback' ) {
