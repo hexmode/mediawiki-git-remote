@@ -1,6 +1,11 @@
 #!/bin/bash
 called=$BASH_SOURCE
 
+sourcing=0
+if [ "$0" != "$called" ]; then
+    sourcing=1
+fi
+
 thispath="$( cd "$(dirname "$called")" ; pwd -P )"
 GIT_EXEC_PATH=$(git --exec-path)
 
@@ -21,12 +26,14 @@ case ":${PERL5LIB:=$thispath/lib}:" in
 esac
 export PERL5LIB
 
-echo PERL_MB_OPT="'--install_base \"$thispath/localcpan\"'"
-echo export PERL_MB_OPT
-echo PERL_MM_OPT="INSTALL_BASE=\"$thispath/localcpan\""
-echo export PERL_MM_OPT
+if [ "$sourcing" == "0" ]; then
+    echo PERL_MB_OPT="'--install_base \"$thispath/localcpan\"'"
+    echo export PERL_MB_OPT
+    echo PERL_MM_OPT="INSTALL_BASE=\"$thispath/localcpan\""
+    echo export PERL_MM_OPT
 
-echo PERL5LIB=$PERL5LIB
-echo export PERL5LIB
-echo GIT_EXEC_PATH=$GIT_EXEC_PATH
-echo export GIT_EXEC_PATH
+    echo PERL5LIB=$PERL5LIB
+    echo export PERL5LIB
+    echo GIT_EXEC_PATH=$GIT_EXEC_PATH
+    echo export GIT_EXEC_PATH
+fi
