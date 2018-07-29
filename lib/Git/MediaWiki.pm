@@ -651,7 +651,9 @@ sub addNSMap {
 
 	$name =~ s/ /_/g;
 	$self->{allNamespaces}->{$name} = $id;
-	Git::command_oneline(qw(config --add remote.$self->{remotename}.namespaceCache $name:$id));
+	Git::command_oneline( [
+		"config", "--add", "remote.$self->{remotename}.namespaceCache", "$name:$id"
+	  ] );
 }
 
 sub getNamespaces {
