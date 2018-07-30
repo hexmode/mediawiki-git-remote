@@ -223,10 +223,11 @@ sub uniq {
 sub getNotes {
 	my ($self, $what) = @_;
 
-	my $note = $self->runGit(
-		qw(notes --ref=$self->{remotename}/mediawiki show refs/mediawiki/$self->{remotename}/master
-		   2>/dev/null)
+	my $note = Git::command_oneline(
+		"notes", "--ref=$self->{remotename}/mediawiki", "show",
+		  "refs/mediawiki/$self->{remotename}/master"
 		);
+	$self->debug( "Notes returned: $note\n", 32 );
 	if ($note eq '') {
 		return $note;
 	}
@@ -266,7 +267,7 @@ sub getLastLocalRevision {
 sub getLastGlobalRemoteRev {
 	my ($self) = @_;
 
-	$self->debug( "Getting last global remote rev." );
+	$self->debug( "Getting last global remote rev.\n" );
 	if ( !$self->{lastGlobalRemoteRev} ) {
 		my $query = {
 			action => 'query',
@@ -367,8 +368,8 @@ sub getNamespaceId {
 	if (!exists($self->{allNamespaces}->{$name})) {
 		warn "No such namespace '${name}' on this wiki.\n";
 	}
-	return exists( $self->{allNamespaces}->{$name}->{id} )
-	  ? $self->{allNamespaces}->{$name}->{id} : "notANameSpace";
+	return exists( $self->{allNamespaces}->{$name} )
+	  ? $self->{allNamespaces}->{$name} : "notANameSpace";
 }
 
 sub smudgeFilename {
@@ -509,11 +510,11 @@ sub importRefByRevs {
 
 sub getGitRemoteList {
 	my ( $self, $name ) = @_;
-	my $blob = Git::config( "remote.$self->{remotename}.$name" );
 
-	return split(
-		/[\n]/, defined( $blob ) ? $blob : ''
-	  );
+	$self->debug( "Getting list for $name\n", 32 );
+	my @blob = Git::config( "remote.$self->{remotename}.$name" );
+	$self->debug( "Got: @blob\n", 32 );
+	return @blob;
 }
 
 sub getPageList {
@@ -584,7 +585,7 @@ sub getPageChunk {
 		action => 'query',
 		apfrom => $from || "",
 		list => 'allpages',
-		apnamespace => $self->{allNamespaces}->{$ns}->{id},
+		apnamespace => $self->{allNamespaces}->{$ns},
 		aplimit => 'max',
 	});
 	if (ref $ret eq "ARRAY") {
@@ -628,10 +629,10 @@ sub getAllPages {
 	my $batch = BATCH_SIZE;
 	my %seen;
 	my @theseNS =
-	  sort{ $self->{allNamespaces}->{$a}->{id} <=> $self->{allNamespaces}->{$b}->{id} }
+	  sort{ $self->{allNamespaces}->{$a} <=> $self->{allNamespaces}->{$b} }
 	  grep{
-		  defined $self->{allNamespaces}->{$_}->{id}
-			&& !$seen{$self->{allNamespaces}->{$_}->{id}}++
+		  defined $self->{allNamespaces}->{$_}
+			&& !$seen{$self->{allNamespaces}->{$_}}++
 		} keys %{$self->{allNamespaces}};
 
 	foreach my $ns ( @theseNS ) {
@@ -773,10 +774,13 @@ sub handleImport {
 	my @import = split( / /, $line );
 	shift @import;
 
-	$self->debug( "Handling Import", 4 );
+	$self->debug( "Handling Import\n", 4 );
 	# multiple import commands can follow each other.
 	my @refs = $self->uniq( $self->getMoreRefs( 'import' ) );
 	$self->debug( "Got refs: " . join( ", ", @refs ) . "\n", 2 );
+	if ( !@refs ) {
+		@refs = [ NULL_SHA1 ];
+	}
 	foreach my $ref (@refs) {
 		$self->importRef( $ref );
 	}
@@ -814,22 +818,6 @@ sub handleBadInput {
 	my $line = shift;
 
 	$self->raiseError( "BadInput: <$line>\n", 2 );
-}
-
-sub runGit {
-	my ($self, $args, $encoding) = @_;
-	$encoding ||= 'encoding(UTF-8)';
-	$self->debug(
-		"executing 'git $args' with encoding: $encoding\n", 4
-	  );
-	my $git = Git::command_output_pipe( ${args} );
-	my $res = do {
-		local $/ = undef;
-		<$git>
-	};
-	Git::command_close_pipe( $git );
-	$self->debug( "git returned: $res\n", 4 );
-	return $res;
 }
 
 sub connectMaybe {
