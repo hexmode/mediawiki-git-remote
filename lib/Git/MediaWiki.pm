@@ -223,10 +223,11 @@ sub uniq {
 sub getNotes {
 	my ($self, $what) = @_;
 
-	my $note = $self->runGit(
+	my $note = Git::command_oneline(
 		"notes", "--ref=$self->{remotename}/mediawiki", "show",
 		  "refs/mediawiki/$self->{remotename}/master"
 		);
+	$self->debug( "Notes returned: $note\n", 32 );
 	if ($note eq '') {
 		return $note;
 	}
@@ -777,6 +778,9 @@ sub handleImport {
 	# multiple import commands can follow each other.
 	my @refs = $self->uniq( $self->getMoreRefs( 'import' ) );
 	$self->debug( "Got refs: " . join( ", ", @refs ) . "\n", 2 );
+	if ( !@refs ) {
+		@refs = [ NULL_SHA1 ];
+	}
 	foreach my $ref (@refs) {
 		$self->importRef( $ref );
 	}
@@ -814,22 +818,6 @@ sub handleBadInput {
 	my $line = shift;
 
 	$self->raiseError( "BadInput: <$line>\n", 2 );
-}
-
-sub runGit {
-	my ($self, $args, $encoding) = @_;
-	$encoding ||= 'encoding(UTF-8)';
-	$self->debug(
-		"executing 'git $args' with encoding: $encoding\n", 4
-	  );
-	my $git = Git::command_output_pipe( ${args} );
-	my $res = do {
-		local $/ = undef;
-		<$git>
-	};
-	Git::command_close_pipe( $git );
-	$self->debug( "git returned: $res\n", 4 );
-	return $res;
 }
 
 sub connectMaybe {
