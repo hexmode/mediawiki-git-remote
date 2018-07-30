@@ -267,7 +267,7 @@ sub getLastLocalRevision {
 sub getLastGlobalRemoteRev {
 	my ($self) = @_;
 
-	$self->debug( "Getting last global remote rev." );
+	$self->debug( "Getting last global remote rev.\n" );
 	if ( !$self->{lastGlobalRemoteRev} ) {
 		my $query = {
 			action => 'query',
@@ -368,8 +368,8 @@ sub getNamespaceId {
 	if (!exists($self->{allNamespaces}->{$name})) {
 		warn "No such namespace '${name}' on this wiki.\n";
 	}
-	return exists( $self->{allNamespaces}->{$name}->{id} )
-	  ? $self->{allNamespaces}->{$name}->{id} : "notANameSpace";
+	return exists( $self->{allNamespaces}->{$name} )
+	  ? $self->{allNamespaces}->{$name} : "notANameSpace";
 }
 
 sub smudgeFilename {
@@ -510,11 +510,11 @@ sub importRefByRevs {
 
 sub getGitRemoteList {
 	my ( $self, $name ) = @_;
-	my $blob = Git::config( "remote.$self->{remotename}.$name" );
 
-	return split(
-		/[\n]/, defined( $blob ) ? $blob : ''
-	  );
+	$self->debug( "Getting list for $name\n", 32 );
+	my @blob = Git::config( "remote.$self->{remotename}.$name" );
+	$self->debug( "Got: @blob\n", 32 );
+	return @blob;
 }
 
 sub getPageList {
@@ -585,7 +585,7 @@ sub getPageChunk {
 		action => 'query',
 		apfrom => $from || "",
 		list => 'allpages',
-		apnamespace => $self->{allNamespaces}->{$ns}->{id},
+		apnamespace => $self->{allNamespaces}->{$ns},
 		aplimit => 'max',
 	});
 	if (ref $ret eq "ARRAY") {
@@ -629,10 +629,10 @@ sub getAllPages {
 	my $batch = BATCH_SIZE;
 	my %seen;
 	my @theseNS =
-	  sort{ $self->{allNamespaces}->{$a}->{id} <=> $self->{allNamespaces}->{$b}->{id} }
+	  sort{ $self->{allNamespaces}->{$a} <=> $self->{allNamespaces}->{$b} }
 	  grep{
-		  defined $self->{allNamespaces}->{$_}->{id}
-			&& !$seen{$self->{allNamespaces}->{$_}->{id}}++
+		  defined $self->{allNamespaces}->{$_}
+			&& !$seen{$self->{allNamespaces}->{$_}}++
 		} keys %{$self->{allNamespaces}};
 
 	foreach my $ns ( @theseNS ) {
