@@ -224,8 +224,8 @@ sub getNotes {
 	my ($self, $what) = @_;
 
 	my $note = $self->runGit(
-		qw(notes --ref=$self->{remotename}/mediawiki show refs/mediawiki/$self->{remotename}/master
-		   2>/dev/null)
+		"notes", "--ref=$self->{remotename}/mediawiki", "show",
+		  "refs/mediawiki/$self->{remotename}/master"
 		);
 	if ($note eq '') {
 		return $note;
@@ -773,7 +773,7 @@ sub handleImport {
 	my @import = split( / /, $line );
 	shift @import;
 
-	$self->debug( "Handling Import", 4 );
+	$self->debug( "Handling Import\n", 4 );
 	# multiple import commands can follow each other.
 	my @refs = $self->uniq( $self->getMoreRefs( 'import' ) );
 	$self->debug( "Got refs: " . join( ", ", @refs ) . "\n", 2 );
