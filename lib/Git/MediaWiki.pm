@@ -8,6 +8,7 @@ use MediaWiki::API;
 use Git;
 use HTTP::Date;
 use Git::MediaWiki::Constants qw(:all);
+use POSIX;
 use constant NAME => "mediawiki";
 
 sub new {
@@ -383,7 +384,7 @@ sub smudgeFilename {
 
 	# Decode forbidden characters encoded in clean_filename
 	$filename =~ s/_%_([0-9a-fA-F][0-9a-fA-F])/sprintf('%c', hex($1))/ge;
-	return $filename;
+	return substr($filename, 0, NAME_MAX-length('.mw'));
 }
 
 # Filter applied on MediaWiki data before adding them to Git
