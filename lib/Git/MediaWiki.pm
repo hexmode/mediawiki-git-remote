@@ -253,7 +253,10 @@ sub getNotes {
 sub getLastLocalRevision {
 	my ($self) = @_;
 	# Get note regarding last mediawiki revision
-	my $lastRevNumber = $self->getNotes( 'mediawiki_revision' );
+	my $lastRevNumber;
+	eval {
+		$lastRevNumber = $self->getNotes( 'mediawiki_revision' );
+	};
 	if ( !$lastRevNumber ) {
 		warn "No previous mediawiki revision found.\n";
 		$lastRevNumber = 0;
@@ -469,7 +472,7 @@ sub importRevIds {
 			}
 		}
 
-		if (!exists($pages->{$pageTitle})) {
+		if (keys %{$pages} && !exists($pages->{$pageTitle})) {
 			warn "${n}/", scalar(@{$revision}),
 			  ": Skipping revision #$rev->{revid} of $pageTitle\n";
 			next;
@@ -589,7 +592,7 @@ sub getPageChunk {
 		action => 'query',
 		apfrom => $from || "",
 		list => 'allpages',
-		apnamespace => $self->{allNamespaces}->{$ns},
+		apnamespace => $self->{allNamespaces}->{$ns}->{id},
 		aplimit => 'max',
 	});
 	if (ref $ret eq "ARRAY") {
@@ -597,8 +600,6 @@ sub getPageChunk {
 	}
 	return ();
 }
-
-
 
 sub getPagesInNamespace {
 	my ($self, $ns) = @_;
@@ -633,7 +634,7 @@ sub getAllPages {
 	my $batch = BATCH_SIZE;
 	my %seen;
 	my @theseNS =
-	  sort{ $self->{allNamespaces}->{$a} <=> $self->{allNamespaces}->{$b} }
+	  sort{ $self->{allNamespaces}->{$a}->{id} <=> $self->{allNamespaces}->{$b}->{id} }
 	  grep{
 		  defined $self->{allNamespaces}->{$_}
 			&& !$seen{$self->{allNamespaces}->{$_}}++
@@ -642,10 +643,11 @@ sub getAllPages {
 	foreach my $ns ( @theseNS ) {
 		$self->debug( "Processing $ns\n" );
 		my $pageIter = $self->getPagesInNamespace( $ns );
-		if (!defined($pageIter)) {
-			$self->fatal("get the list of wiki pages");
+		if ( !defined( $pageIter ) ) {
+			$self->fatal( "get the list of wiki pages" );
 		}
-		while (my $page = $pageIter->()) {
+		while ( my $page = $pageIter->() ) {
+			$self->debug( "Got '$page->{title}' from page iterator\n", 4 );
 			$pages->{$page->{title}} = $page;
 		}
 	}
