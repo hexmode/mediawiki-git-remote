@@ -21,8 +21,10 @@ sub new {
 		$self->{remotename} = '_';
 	}
 	$self->{url} = $arg[1];
-	$self->{dir} =
-	  $ENV{GIT_DIR} . '/' . NAME . '/' . $self->{remotename};
+	if ( $ENV{GIT_DIR} ) {
+		$self->{dir} =
+		  $ENV{GIT_DIR} . '/' . NAME . '/' . $self->{remotename};
+	}
 	$self->{prefix} = 'refs/' . NAME . '/' . $self->{remotename};
 	$self->{DEBUG} = 0;
 	$| = 1;
@@ -96,6 +98,7 @@ sub handleCapabilities {
 sub handleList {
 	my $self = shift;
 
+	$self->connectMaybe();
 	$self->debug( "List: (MW remotes only have one branch)\n", 2 );
 	$self->tellGit( "? refs/heads/master\n" );
 	$self->tellGit( "\@refs/heads/master HEAD\n" );
