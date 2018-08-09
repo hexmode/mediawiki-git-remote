@@ -604,8 +604,11 @@ sub prompt {
 			print STDERR "\n";
 			STDERR->flush;
                 } else {
-			chomp($ret = <STDIN>);
-		}
+                        $ret = <STDIN>;
+                        if ( defined $ret ) {
+                                chomp($ret);
+                        }
+                }
 	}
 	return $ret;
 }
