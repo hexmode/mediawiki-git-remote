@@ -32,16 +32,15 @@ sub new {
 }
 
 sub setDebug {
-	my $self = shift;
-
-	$self->{DEBUG} = shift;
+	my ( $self, $level ) = @_;
+	$self->{DEBUG} = $level || 0;
 }
 
 sub debug {
 	my ($self, $line, $level) = @_;
-	$level ||= 1;
+	$level ||= 0;
 
-	warn $line if $self->{DEBUG} && $level;
+	warn $line if $self->{DEBUG} & $level;
 }
 
 sub raiseError {
@@ -57,7 +56,7 @@ sub readLine {
 	my $line = <STDIN>;
 	if ( $line ) {
 		chomp( $line );
-		$self->debug( "Got: <$line>\n" );
+		$self->debug( "Got: <$line>\n", 2 );
 	}
 	return $line || "";
 }
@@ -333,7 +332,7 @@ sub importRef {
 	my $n = 0;
 	$self->{fetchStrategy}
 	  ||= Git::config( "remote.$self->{remotename}.fetchStrategy" )
-	  || Git::config( "mediawiki.fetchStrategy" ) || 'by_ref';
+	  || Git::config( "mediawiki.fetchStrategy" ) || 'by_rev';
 	if ( $self->{fetchStrategy} eq 'by_rev' ) {
 		$self->debug(
 			"Fetching & writing export data by revs...\n", 1
@@ -635,10 +634,8 @@ sub getAllPages {
 	my %seen;
 	my @theseNS =
 	  sort{ $self->{allNamespaces}->{$a}->{id} <=> $self->{allNamespaces}->{$b}->{id} }
-	  grep{
-		  defined $self->{allNamespaces}->{$_}
-			&& !$seen{$self->{allNamespaces}->{$_}}++
-		} keys %{$self->{allNamespaces}};
+	  grep{ ref $self->{allNamespaces}->{$_} && !$seen{$self->{allNamespaces}->{$_}}++ }
+	  keys %{$self->{allNamespaces}};
 
 	foreach my $ns ( @theseNS ) {
 		$self->debug( "Processing $ns\n" );
@@ -762,16 +759,16 @@ sub getPages {
 		}
 	}
 
-    my $found = scalar keys %{$pages};
-    if ($found == 1) {
+	my $found = scalar keys %{$pages};
+	if ($found == 1) {
 		$self->debug( "1 page found.\n" );
-    }
-    if ($found > 1) {
+	}
+	if ($found > 1) {
 		$self->debug( "$found pages found.\n" );
-    }
-    if (!$found) {
+	}
+	if (!$found) {
 		warn "No pages found.\n";
-    }
+	}
 	return $pages;
 }
 
@@ -846,7 +843,7 @@ sub connectMaybe {
 	$self->{wikiName} = "FIXME-WITH-A-WIKI-NAME";
 
 	$self->{wiki} = MediaWiki::API->new;
-	$self->{wiki}->{config}->{api_url} = $self->{url} . "/api.php";
+	$self->{wiki}->{config}->{api_url} = $self->{url};
 	Git::credential($self->{credential});
 	if ( $self->{credential}->{username} ) {
 		my $request = {
@@ -858,9 +855,9 @@ sub connectMaybe {
 			Git::credential($self->{credential}, 'approve');
 			$self->debug( qq(Logged in mediawiki user "$self->{credential}->{username}".\n) );
 		} else {
-			$self->debug( qq(Failed to log in mediawiki user "$self->{credential}->{username}" )
-							. qq(on $self->{url}\n\nerror: ) . $self->{wiki}->{error}->{code} . ': '
-							. $self->{wiki}->{error}->{details} . ")\n" );
+			warn qq(Failed to log in mediawiki user "$self->{credential}->{username}" )
+			  . qq(on $self->{url}\n\nerror: ) . $self->{wiki}->{error}->{code} . ': '
+			  . $self->{wiki}->{error}->{details} . ")\n";
 			Git::credential($self->{credential}, 'reject');
 			exit 1;
 		}
