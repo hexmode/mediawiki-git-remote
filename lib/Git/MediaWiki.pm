@@ -2,13 +2,14 @@ package Git::MediaWiki; # -*- mode: cperl; cperl-indent-level: 4; tab-width: 4; 
 
 use strict;
 
-use URI::URL;
-use URI::Escape;
-use MediaWiki::API;
+use Error qw(:try);
 use Git;
-use HTTP::Date;
 use Git::MediaWiki::Constants qw(:all);
+use HTTP::Date;
+use MediaWiki::API;
 use POSIX;
+use URI::Escape;
+use URI::URL;
 use constant NAME => "mediawiki";
 
 sub new {
@@ -227,9 +228,10 @@ sub getNotes {
 	my ($self, $what) = @_;
 
 	my $note = Git::command_oneline(
-		"notes", "--ref=$self->{remotename}/mediawiki", "show",
-		  "refs/mediawiki/$self->{remotename}/master"
-		);
+		[ "notes", "--ref=$self->{remotename}/mediawiki", "show",
+		  "refs/mediawiki/$self->{remotename}/master" ],
+		{ STDERR => '' }
+	  );
 	$self->debug( "Notes returned: $note\n", 32 );
 	if ($note eq '') {
 		return $note;
@@ -253,9 +255,9 @@ sub getLastLocalRevision {
 	my ($self) = @_;
 	# Get note regarding last mediawiki revision
 	my $lastRevNumber;
-	eval {
+	try {
 		$lastRevNumber = $self->getNotes( 'mediawiki_revision' );
-	};
+	} catch Git::Error::Command with {};
 	if ( !$lastRevNumber ) {
 		warn "No previous mediawiki revision found.\n";
 		$lastRevNumber = 0;
