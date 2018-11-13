@@ -1,0 +1,35 @@
+*  A git remote for MediaWiki
+
+This code is a slightly updated version of the code in [https://github.com/git/git/tree/master/contrib/mw-to-git git/contrib/mw-to-git].
+
+** usage
+
+- Check out the code
+#+BEGIN_SRC sh
+git clone https://github.com/hexmode/mediawiki-git-remote.git
+#+END_SRC
+- Set up your environment
+#+BEGIN_SRC sh
+eval `mediawiki-git-remote/setup.sh`
+#+END_SRC
+- Clone a mediawiki
+#+BEGIN_SRC sh
+git clone mediawiki::http://git-media.wiki/w
+#+END_SRC
+
+** configuration ==
+You can use your =.git/config= to store various configuation items
+
+- mwUnderNS :: Only synchronize pages in this namespace.
+- mwLogin :: Your MediaWiki username
+- mwPassword :: Your MediaWiki password
+
+Example:
+#+BEGIN_SRC conf
+  [remote "origin"]
+    url = mediawiki::http://git-media.wiki/w
+    fetch = +refs/heads/*:refs/remotes/origin/*
+    mwUnderNS = SMW
+    mwLogin = MyUser
+    mwPassword = PASSWORD
+#+END_SRC
